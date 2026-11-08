@@ -1,0 +1,7 @@
+# Dependências do projeto (Python 3.13)
+osmnx==2.1.1        # ruas do bairro como grafo
+networkx==3.7       # só para validar o Dijkstra próprio
+folium==0.20.0      # mapa HTML com fundo de satélite
+requests==2.34.2    # API Open Topo Data (altitude) e demais downloads
+pandas==3.1.1       # leitura do CNEFE/IBGE
+numpy==2.5.4
