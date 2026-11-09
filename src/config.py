@@ -11,3 +11,8 @@ LON_MIN, LON_MAX = -47.4304, -47.4185
 MARGEM = 0.002  # graus (~200 m)
 
 GRAFO_RUAS = DATA / "ruas.graphml"
+
+PASSO_CENTRO = 150  # m: n = ceil(L / PASSO_CENTRO) centros por quarteirão
+NOS_CSV = DATA / "nos.csv"          # id, tipo, lat, lon, altitude
+ARESTAS_CSV = DATA / "arestas.csv"  # u, v, comprimento (trecho de rua, sem direção)
+ALTITUDES_CACHE = DATA / "altitudes.json"
