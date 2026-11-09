@@ -9,12 +9,12 @@ LAT_MIN, LAT_MAX = -22.5715, -22.5625
 LON_MIN, LON_MAX = -47.4304, -47.4185
 MARGEM = 0.002  # graus (~200 m)
 LOCALIDADE = "JARDIM SENADOR VERGUEIRO"
-PASSO_CENTRO = 150  # m: n = ceil(L / PASSO_CENTRO) centros por quarteirão
+PASSO_CENTRO = 50  # m: n = ceil(L / PASSO_CENTRO) - 1 centros por quarteirão
 
 # arquivos em data/
 GRAFO_RUAS = DATA / "ruas.graphml"
-NOS_CSV = DATA / "nos.csv"          # id, tipo, lat, lon, altitude
-ARESTAS_CSV = DATA / "arestas.csv"  # u, v, comprimento (trecho de rua, sem direção)
+NOS_CSV = DATA / "nos.csv"          # id, tipo, lat, lon, altitude (só esquinas)
+ARESTAS_CSV = DATA / "arestas.csv"  # u, v, comprimento, esq_u, esq_v, comprimento_quarteirao (trecho sem direção)
 ALTITUDES_CACHE = DATA / "altitudes.json"  # {"lat,lon": altitude}
 CASAS_CSV = DATA / "casas.csv"
 CNEFE_ZIP = DATA / "bruto" / "3526902_LIMEIRA.zip"

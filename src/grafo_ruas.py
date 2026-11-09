@@ -1,7 +1,9 @@
 """Constrói os nós de rua (esquinas + centros) e os trechos entre eles.
 
-Cada quarteirão (aresta do OSM) de comprimento L ganha n = ceil(L / 150) centros,
+Cada quarteirão (aresta do OSM) de comprimento L ganha n = ceil(L / PASSO_CENTRO) - 1 centros (PASSO_CENTRO = 50 m),
 igualmente espaçados ao longo da rua; o quarteirão vira n+1 trechos de L/(n+1).
+Cada trecho guarda as esquinas (esq_u, esq_v) e o comprimento do quarteirão a que pertence:
+a inclinação (nível) é calculada de esquina a esquina, não por trecho.
 Os trechos são sem direção aqui; na etapa de pesos viram duas arestas.
 """
 import math
@@ -40,7 +42,7 @@ def construir(g):
         pu = Point(g.nodes[u]["x"], g.nodes[u]["y"])
         if Point(geom.coords[0]).distance(pu) > Point(geom.coords[-1]).distance(pu):
             geom = LineString(list(geom.coords)[::-1])
-        n = math.ceil(L / PASSO_CENTRO)
+        n = math.ceil(L / PASSO_CENTRO) - 1
         ids = [f"e{u}"]
         for i in range(1, n + 1):
             p = geom.interpolate(i / (n + 1), normalized=True)
@@ -50,7 +52,8 @@ def construir(g):
             ids.append(cid)
         ids.append(f"e{v}")
         for a, b in zip(ids, ids[1:]):
-            trechos.append(dict(u=a, v=b, comprimento=L / (n + 1)))
+            trechos.append(dict(u=a, v=b, comprimento=L / (n + 1),
+                                esq_u=f"e{u}", esq_v=f"e{v}", comprimento_quarteirao=L))
     return nos, trechos
 
 

@@ -20,7 +20,7 @@ O grafo tem três tipos de vértice. Os nós de rua (esquina e centro) se ligam 
 | Vértice | Definição |
 |---|---|
 | **Esquina** | Cruzamento ou ponta de rua, vindo do OpenStreetMap. |
-| **Centro** | Ponto no meio do quarteirão, criado pelo grupo: um a cada 150 m de quarteirão (`n = ⌈L / 150⌉`). |
+| **Centro** | Ponto no meio do quarteirão, criado pelo grupo: um a cada 50 m de quarteirão (`n = ⌈L / 50⌉ − 1`). |
 | **Casa** | Endereço do CNEFE. Os apartamentos de um prédio viram uma casa só. |
 
 **Regra de vizinhança:** ao longo de um quarteirão os nós de rua ficam em ordem (esquina, centros, esquina). Cada nó de rua se liga às casas que ficam entre o nó de rua anterior e o próximo, incluindo as que estão na frente deles. As casas dos dois lados da rua usam os mesmos nós.

@@ -1,4 +1,4 @@
-"""Altitude (SRTM 30 m, Open Topo Data) de cada nó de data/nos.csv, com cache por coordenada (a altitude depende só da posição, não do id)."""
+"""Altitude (SRTM 30 m, Open Topo Data) das esquinas de data/nos.csv (centros ficam sem altitude), com cache por coordenada (a altitude depende só da posição, não do id)."""
 import json
 import time
 
@@ -28,13 +28,15 @@ def consultar(lote):
 
 if __name__ == "__main__":
     nos = pd.read_csv(NOS_CSV)
+    esq = nos.tipo == "esquina"
     cache = json.loads(ALTITUDES_CACHE.read_text()) if ALTITUDES_CACHE.exists() else {}
-    chaves = [chave(la, lo) for la, lo in zip(nos.lat, nos.lon)]
+    chaves = [chave(la, lo) for la, lo in zip(nos.lat[esq], nos.lon[esq])]
     faltam = sorted(set(chaves) - cache.keys())
     for i in range(0, len(faltam), LOTE):
         cache.update(consultar(faltam[i:i + LOTE]))
         ALTITUDES_CACHE.write_text(json.dumps(cache))
         time.sleep(1.1)
-    nos["altitude"] = [cache[k] for k in chaves]
+    nos["altitude"] = None
+    nos.loc[esq, "altitude"] = [cache[k] for k in chaves]
     nos.to_csv(NOS_CSV, index=False)
-    print(f"{len(faltam)} baixadas; sem altitude: {nos.altitude.isna().sum()}")
+    print(f"{len(faltam)} baixadas; esquinas sem altitude: {nos.altitude[esq].isna().sum()}")
