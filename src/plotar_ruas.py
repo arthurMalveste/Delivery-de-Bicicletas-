@@ -1,32 +1,39 @@
-"""Plota o grafo de ruas sobre satélite, com a bbox dos endereços, para conferência."""
+"""Mapa de conferência: trechos, esquinas e centros (de data/) sobre satélite."""
 import folium
-import osmnx as ox
+import pandas as pd
 
-from baixar_ruas import baixar
-from config import (LAT_MAX, LAT_MIN, LON_MAX, LON_MIN, MARGEM, OUTPUT)
+from config import (ARESTAS_CSV, LAT_MAX, LAT_MIN, LON_MAX, LON_MIN, MARGEM, NOS_CSV, OUTPUT)
+
+COR = {"esquina": "red", "centro": "cyan"}
 
 
 def main():
-    OUTPUT.mkdir(exist_ok=True)
-    g = baixar()
-    nos, arestas = ox.graph_to_gdfs(g)
-    centro = [(LAT_MIN + LAT_MAX) / 2, (LON_MIN + LON_MAX) / 2]
-    m = folium.Map(location=centro, zoom_start=16, tiles=None)
+    nos = pd.read_csv(NOS_CSV).set_index("id")
+    trechos = pd.read_csv(ARESTAS_CSV)
+    m = folium.Map(location=[(LAT_MIN + LAT_MAX) / 2, (LON_MIN + LON_MAX) / 2], zoom_start=17, tiles=None)
     folium.TileLayer(
         "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
         attr="Esri World Imagery", name="Satélite").add_to(m)
-    folium.GeoJson(arestas[["geometry"]], name="Ruas",
-                   style_function=lambda _: {"color": "#ffd400", "weight": 3}).add_to(m)
-    for _, n in nos.iterrows():
-        folium.CircleMarker([n.y, n.x], radius=3, color="red", fill=True).add_to(m)
-    folium.Rectangle([[LAT_MIN, LON_MIN], [LAT_MAX, LON_MAX]], color="cyan",
-                     fill=False, tooltip="Área dos endereços IBGE").add_to(m)
+
+    ruas = folium.FeatureGroup("Trechos").add_to(m)
+    for t in trechos.itertuples():
+        a, b = nos.loc[t.u], nos.loc[t.v]
+        folium.PolyLine([[a.lat, a.lon], [b.lat, b.lon]], color="#ffd400", weight=3,
+                        tooltip=f"{t.u} — {t.v}: {t.comprimento:.1f} m").add_to(ruas)
+    for tipo, cor in COR.items():
+        grupo = folium.FeatureGroup(f"{tipo.capitalize()}s").add_to(m)
+        for i, n in nos[nos.tipo == tipo].iterrows():
+            alt = "" if pd.isna(n.altitude) else f" | {n.altitude:.0f} m"
+            folium.CircleMarker([n.lat, n.lon], radius=4 if tipo == "esquina" else 3, color=cor,
+                                fill=True, fill_opacity=1, tooltip=f"{i}{alt}").add_to(grupo)
+
+    folium.Rectangle([[LAT_MIN, LON_MIN], [LAT_MAX, LON_MAX]], color="white", fill=False,
+                     tooltip="Área dos endereços IBGE").add_to(m)
     folium.Rectangle([[LAT_MIN - MARGEM, LON_MIN - MARGEM], [LAT_MAX + MARGEM, LON_MAX + MARGEM]],
                      color="white", dash_array="6", fill=False, tooltip="Área baixada").add_to(m)
     folium.LayerControl().add_to(m)
-    saida = OUTPUT / "ruas.html"
-    m.save(saida)
-    print(f"Mapa salvo em {saida}")
+    m.save(OUTPUT / "ruas.html")
+    print(f"{len(nos)} nós, {len(trechos)} trechos em {OUTPUT / 'ruas.html'}")
 
 
 if __name__ == "__main__":
