@@ -1,3 +1,5 @@
 CLAUDE.md
 .venv/
 venv
+# dados baixados (cache)
+dados/bruto/
