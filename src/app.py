@@ -35,6 +35,27 @@ def rotulo_casa(id_casa, casa):
     return f"{casa.rua}, {numero} (casa {id_casa})"
 
 
+def nome_rua(casa):
+    return casa.rua if casa.tipo == "RUA" else f"{casa.tipo} {casa.rua}"
+
+
+def rotulo_numero(numero):
+    return "s/n" if numero == 0 else str(int(numero))
+
+
+def seletor_endereco(titulo, chave, casas, indice_padrao=0):
+    """Duas caixas (rua e número); devolve o id_casa escolhido."""
+    st.subheader(titulo)
+    ruas = sorted(casas.apply(nome_rua, axis=1).unique())
+    rua = st.selectbox("Rua", ruas, index=indice_padrao if indice_padrao < len(ruas) else 0, key=f"{chave}-rua")
+    da_rua = casas[casas.apply(nome_rua, axis=1) == rua].sort_values("numero", key=lambda n: n.where(n > 0, 10**9))  # s/n por último
+    numero = st.selectbox("Número", list(da_rua.numero), key=f"{chave}-num-{rua}", format_func=rotulo_numero)
+    if numero == 0:
+        st.caption("**s/n** = sem número: o IBGE registrou endereços dessa rua sem numeração; "
+                   "todos eles ficam representados por um único ponto no mapa.")
+    return int(da_rua[da_rua.numero == numero].index[0])
+
+
 def construir_mapa(modo, nos, trechos, casas, mostrar, origem, destino, etapa=lambda msg: None):
     """`etapa(msg)` é chamado a cada fase, para a interface mostrar o andamento."""
     etapa("Preparando o fundo do mapa…")
@@ -80,18 +101,54 @@ def construir_mapa(modo, nos, trechos, casas, mostrar, origem, destino, etapa=la
     return m
 
 
+def ajuda():
+    st.markdown("""
+### Como usar a interface
+
+**1. Escolha origem e destino** (barra lateral). Cada endereço tem duas caixas: primeiro a **rua**,
+depois o **número**. A lista de números mostra só os que existem na base do IBGE (CNEFE 2022) para
+aquela rua, então não é possível digitar um endereço inexistente.
+
+**2. Escolha o fundo do mapa.**
+- *Satélite + grafo*: imagem de satélite com o grafo desenhado por cima (ruas em amarelo).
+- *Só o grafo (fundo branco)*: apenas o grafo, sem imagem (ruas em azul), bom para ver a estrutura.
+
+**3. Ligue ou desligue camadas**: trechos, esquinas, centros e casas.
+
+**4. Explore o mapa.** Arraste para mover, use a roda do mouse ou os botões +/− para dar zoom e
+passe o mouse sobre um ponto para ver detalhes (ID e altitude do vértice, comprimento do trecho,
+endereço da casa). O marcador verde é a origem e o vermelho é o destino.
+
+**5. Acompanhe o carregamento.** Ao mudar qualquer opção, aparece o andamento ("Traçando trechos…",
+"Posicionando casas…") e um círculo girando enquanto o mapa é desenhado. É normal levar alguns segundos.
+
+### Legenda do grafo
+| Elemento | O que é |
+|---|---|
+| Ponto vermelho | **Esquina**: cruzamento ou ponta de rua (OpenStreetMap) |
+| Ponto ciano | **Centro**: ponto no meio do quarteirão, um a cada 50 m |
+| Ponto laranja | **Casa**: endereço do IBGE |
+| Linha | **Trecho** de rua entre dois vértices |
+
+### O que é "s/n"?
+**s/n significa "sem número".** Algumas casas, condomínios ou lotes constam no IBGE sem numeração.
+Como não dá para distingui-los, todos os registros sem número de uma mesma rua viram **uma única casa** no grafo.
+
+### Estado atual
+O cálculo da rota (Dijkstra) ainda não está integrado a esta interface: por ora o mapa mostra
+origem e destino. A rota será desenhada aqui quando o algoritmo for conectado.
+""")
+
+
 def main():
     st.set_page_config(page_title="Delivery de Bicicletas — Limeira", layout="wide")
     st.title("Delivery de Bicicletas — Jardim Senador Vergueiro")
     nos, trechos, casas = carregar()
 
-    ids = list(casas.index)
-    rotulos = {i: rotulo_casa(i, casas.loc[i]) for i in ids}
-
     with st.sidebar:
         st.header("Rota")
-        origem = st.selectbox("De (origem)", ids, index=0, format_func=rotulos.get)
-        destino = st.selectbox("Para (destino)", ids, index=min(1, len(ids) - 1), format_func=rotulos.get)
+        origem = seletor_endereco("De (origem)", "origem", casas, 0)
+        destino = seletor_endereco("Para (destino)", "destino", casas, 1)
 
         st.header("Visualização")
         modo = st.radio("Fundo do mapa", [SATELITE, SO_GRAFO])
@@ -103,23 +160,28 @@ def main():
             "casas": st.checkbox("Casas", True),
         }
 
-    col_mapa, col_info = st.columns([4, 1])
-    with col_info:
-        st.metric("Vértices de rua", len(nos))
-        st.metric("Trechos", len(trechos))
-        st.metric("Casas", len(casas))
-        if origem == destino:
-            st.warning("Origem e destino são o mesmo lugar.")
-        # TODO: chamar o Dijkstra do grupo aqui e desenhar a rota no mapa (construir_mapa)
-        st.info("Cálculo da rota ainda não integrado: por enquanto o mapa mostra origem e destino.")
+    aba_mapa, aba_ajuda = st.tabs(["Mapa", "Ajuda"])
+    with aba_ajuda:
+        ajuda()
+    with aba_mapa:
+        col_mapa, col_info = st.columns([4, 1])
+        with col_info:
+            st.metric("Vértices de rua", len(nos))
+            st.metric("Trechos", len(trechos))
+            st.metric("Casas", len(casas))
+            if origem == destino:
+                st.warning("Origem e destino são o mesmo lugar.")
+            # TODO: chamar o Dijkstra do grupo aqui e desenhar a rota no mapa (construir_mapa)
+            st.info("Cálculo da rota ainda não integrado: por enquanto o mapa mostra origem e destino.")
 
-    with col_mapa:
-        with st.status("Montando o mapa…", expanded=True) as status:
-            mapa = construir_mapa(modo, nos, trechos, casas, mostrar, origem, destino, etapa=st.write)
-            status.update(label="Mapa montado", state="complete", expanded=False)
-        with st.spinner("Desenhando o mapa na tela…"):
-            st_folium(mapa, use_container_width=True, height=650, returned_objects=[],
-                      key=f"mapa-{modo}-{sorted(mostrar.items())}-{origem}-{destino}")
+        with col_mapa:
+            with st.status("Montando o mapa…", expanded=True) as status:
+                mapa = construir_mapa(modo, nos, trechos, casas, mostrar, origem, destino, etapa=st.write)
+                status.update(label="Mapa montado", state="complete", expanded=False)
+            with st.spinner("Desenhando o mapa na tela…"):
+                st_folium(mapa, use_container_width=True, height=650, returned_objects=[],
+                          key=f"mapa-{modo}-{sorted(mostrar.items())}-{origem}-{destino}")
+
 
 if __name__ == "__main__":
     main()
