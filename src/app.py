@@ -35,7 +35,9 @@ def rotulo_casa(id_casa, casa):
     return f"{casa.rua}, {numero} (casa {id_casa})"
 
 
-def construir_mapa(modo, nos, trechos, casas, mostrar, origem, destino):
+def construir_mapa(modo, nos, trechos, casas, mostrar, origem, destino, etapa=lambda msg: None):
+    """`etapa(msg)` é chamado a cada fase, para a interface mostrar o andamento."""
+    etapa("Preparando o fundo do mapa…")
     m = folium.Map(location=[(LAT_MIN + LAT_MAX) / 2, (LON_MIN + LON_MAX) / 2], zoom_start=17,
                    tiles=None, max_zoom=19)
     if modo == SATELITE:
@@ -45,6 +47,7 @@ def construir_mapa(modo, nos, trechos, casas, mostrar, origem, destino):
             folium.Element("<style>.leaflet-container{background:#ffffff !important;}</style>"))
 
     if mostrar["trechos"]:
+        etapa(f"Traçando {len(trechos)} trechos de rua…")
         grupo = folium.FeatureGroup("Trechos").add_to(m)
         for t in trechos.itertuples():
             a, b = nos.loc[t.u], nos.loc[t.v]
@@ -53,22 +56,26 @@ def construir_mapa(modo, nos, trechos, casas, mostrar, origem, destino):
     for tipo, cor in COR_NO.items():
         if not mostrar[tipo]:
             continue
+        etapa(f"Definindo os nós do tipo {tipo}…")
         grupo = folium.FeatureGroup(f"{tipo.capitalize()}s").add_to(m)
         for i, n in nos[nos.tipo == tipo].iterrows():
             alt = "" if pd.isna(n.altitude) else f" | {n.altitude:.0f} m"
             folium.CircleMarker([n.lat, n.lon], radius=4 if tipo == "esquina" else 3, color=cor,
                                 fill=True, fill_opacity=1, tooltip=f"{i}{alt}").add_to(grupo)
     if mostrar["casas"]:
+        etapa(f"Posicionando {len(casas)} casas…")
         grupo = folium.FeatureGroup("Casas").add_to(m)
         for i, c in casas.iterrows():
             folium.CircleMarker([c.lat, c.lon], radius=3, color="#ff8c00", fill=True, fill_opacity=1,
                                 tooltip=rotulo_casa(i, c)).add_to(grupo)
 
+    etapa("Marcando origem e destino…")
     for id_casa, nome, cor, icone in ((origem, "Origem", "green", "play"), (destino, "Destino", "red", "flag")):
         c = casas.loc[id_casa]
         folium.Marker([c.lat, c.lon], tooltip=f"{nome}: {rotulo_casa(id_casa, c)}",
                       icon=folium.Icon(color=cor, icon=icone)).add_to(m)
 
+    etapa("Ajustando o enquadramento…")
     m.fit_bounds([[LAT_MIN, LON_MIN], [LAT_MAX, LON_MAX]])
     return m
 
@@ -107,10 +114,12 @@ def main():
         st.info("Cálculo da rota ainda não integrado: por enquanto o mapa mostra origem e destino.")
 
     with col_mapa:
-        mapa = construir_mapa(modo, nos, trechos, casas, mostrar, origem, destino)
-        st_folium(mapa, use_container_width=True, height=650, returned_objects=[],
-                  key=f"mapa-{modo}-{sorted(mostrar.items())}-{origem}-{destino}")
-
+        with st.status("Montando o mapa…", expanded=True) as status:
+            mapa = construir_mapa(modo, nos, trechos, casas, mostrar, origem, destino, etapa=st.write)
+            status.update(label="Mapa montado", state="complete", expanded=False)
+        with st.spinner("Desenhando o mapa na tela…"):
+            st_folium(mapa, use_container_width=True, height=650, returned_objects=[],
+                      key=f"mapa-{modo}-{sorted(mostrar.items())}-{origem}-{destino}")
 
 if __name__ == "__main__":
     main()
