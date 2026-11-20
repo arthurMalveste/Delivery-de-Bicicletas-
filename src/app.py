@@ -175,9 +175,8 @@ def main():
             st.info("Cálculo da rota ainda não integrado: por enquanto o mapa mostra origem e destino.")
 
         with col_mapa:
-            with st.status("Montando o mapa…", expanded=True) as status:
-                mapa = construir_mapa(modo, nos, trechos, casas, mostrar, origem, destino, etapa=st.write)
-                status.update(label="Mapa montado", state="complete", expanded=False)
+            with st.spinner("Montando o mapa…"):
+                mapa = construir_mapa(modo, nos, trechos, casas, mostrar, origem, destino)
             with st.spinner("Desenhando o mapa na tela…"):
                 st_folium(mapa, use_container_width=True, height=650, returned_objects=[],
                           key=f"mapa-{modo}-{sorted(mostrar.items())}-{origem}-{destino}")
