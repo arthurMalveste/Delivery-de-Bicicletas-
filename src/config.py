@@ -28,6 +28,7 @@ NOS_CSV = DATA / "nos.csv"          # id, tipo, lat, lon, altitude (só esquinas
 ARESTAS_CSV = DATA / "arestas.csv"  # u, v, comprimento, esq_u, esq_v, comprimento_quarteirao (trecho sem direção)
 ALTITUDES_CACHE = DATA / "altitudes.json"  # {"lat,lon": altitude}
 CASAS_CSV = DATA / "casas.csv"
+ARESTAS_CASAS_CSV = DATA / "arestas_casas.csv"  # u (nó de rua) -> v (casa "h<id_casa>"), comprimento em linha reta
 CNEFE_ZIP = DATA / "bruto" / "3526902_LIMEIRA.zip"
 CNEFE_URL = ("https://ftp.ibge.gov.br/Cadastro_Nacional_de_Enderecos_para_Fins_Estatisticos/"
              "Censo_Demografico_2022/Arquivos_CNEFE/CSV/Municipio/35_SP/3526902_LIMEIRA.zip")

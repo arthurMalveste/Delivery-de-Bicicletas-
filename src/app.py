@@ -11,7 +11,7 @@ import pandas as pd
 import streamlit as st
 from streamlit_folium import st_folium
 
-from config import ARESTAS_CSV, CASAS_CSV, LAT_MAX, LAT_MIN, LON_MAX, LON_MIN, NOS_CSV
+from config import ARESTAS_CASAS_CSV, ARESTAS_CSV, CASAS_CSV, LAT_MAX, LAT_MIN, LON_MAX, LON_MIN, NOS_CSV
 
 SATELITE = "Satélite + grafo"
 SO_GRAFO = "Só o grafo (fundo branco)"
@@ -19,6 +19,7 @@ SO_GRAFO = "Só o grafo (fundo branco)"
 # cor das ruas por fundo: amarelo contrasta com o satélite, azul-escuro com o branco
 COR_RUA = {SATELITE: "#ffd400", SO_GRAFO: "#1f4e79"}
 COR_NO = {"esquina": "red", "centro": "cyan"}
+COR_RUA_CASA = {SATELITE: "#ffffff", SO_GRAFO: "#999999"}  # arestas rua -> casa, discretas
 TILES_ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
 
 
@@ -28,11 +29,12 @@ def _ler(versao):
     nos = pd.read_csv(NOS_CSV).set_index("id")
     trechos = pd.read_csv(ARESTAS_CSV)
     casas = pd.read_csv(CASAS_CSV).set_index("id_casa")
-    return nos, trechos, casas
+    rua_casa = pd.read_csv(ARESTAS_CASAS_CSV)
+    return nos, trechos, casas, rua_casa
 
 
 def carregar():
-    return _ler(tuple(p.stat().st_mtime_ns for p in (NOS_CSV, ARESTAS_CSV, CASAS_CSV)))
+    return _ler(tuple(p.stat().st_mtime_ns for p in (NOS_CSV, ARESTAS_CSV, CASAS_CSV, ARESTAS_CASAS_CSV)))
 
 
 def rotulo_casa(id_casa, casa):
@@ -68,7 +70,7 @@ def seletor_endereco(titulo, chave, casas, indice_padrao=0):
     return int(id_casa)
 
 
-def construir_mapa(modo, nos, trechos, casas, mostrar, origem, destino, etapa=lambda msg: None):
+def construir_mapa(modo, nos, trechos, casas, rua_casa, mostrar, origem, destino, etapa=lambda msg: None):
     """`etapa(msg)` é chamado a cada fase, para a interface mostrar o andamento."""
     etapa("Preparando o fundo do mapa…")
     m = folium.Map(location=[(LAT_MIN + LAT_MAX) / 2, (LON_MIN + LON_MAX) / 2], zoom_start=17,
@@ -86,6 +88,14 @@ def construir_mapa(modo, nos, trechos, casas, mostrar, origem, destino, etapa=la
             a, b = nos.loc[t.u], nos.loc[t.v]
             folium.PolyLine([[a.lat, a.lon], [b.lat, b.lon]], color=COR_RUA[modo], weight=3,
                             tooltip=f"{t.u} — {t.v}: {t.comprimento:.1f} m").add_to(grupo)
+    if mostrar["rua_casa"]:
+        etapa(f"Traçando {len(rua_casa)} arestas rua → casa…")
+        grupo = folium.FeatureGroup("Arestas rua → casa").add_to(m)
+        for a in rua_casa.itertuples():
+            n, c = nos.loc[a.u], casas.loc[int(a.v[1:])]
+            folium.PolyLine([[n.lat, n.lon], [c.lat, c.lon]], color=COR_RUA_CASA[modo], weight=1, opacity=0.7,
+                            tooltip=f"{a.u} → {a.v} ({rotulo_casa(int(a.v[1:]), c)}): {a.comprimento:.1f} m"
+                            ).add_to(grupo)
     for tipo, cor in COR_NO.items():
         if not mostrar[tipo]:
             continue
@@ -134,7 +144,7 @@ aquela rua, então não é possível digitar um endereço inexistente.
 - *Satélite + grafo*: imagem de satélite com o grafo desenhado por cima (ruas em amarelo).
 - *Só o grafo (fundo branco)*: apenas o grafo, sem imagem (ruas em azul), bom para ver a estrutura.
 
-**3. Ligue ou desligue camadas**: trechos, esquinas, centros, casas e o ajuste das casas
+**3. Ligue ou desligue camadas**: trechos, arestas rua → casa, esquinas, centros, casas e o ajuste das casas
 (traço branco do ponto original do IBGE, em roxo, até o ponto usado no grafo).
 
 **4. Explore o mapa.** Arraste para mover, use a roda do mouse ou os botões +/− para dar zoom e
@@ -152,6 +162,13 @@ endereço da casa). O marcador verde é a origem e o vermelho é o destino.
 | Ponto laranja | **Casa**: endereço do IBGE, colocado no lote em frente à sua rua |
 | Ponto roxo | Coordenada original do IBGE (camada "Ajuste das casas") |
 | Linha | **Trecho** de rua entre dois vértices |
+| Linha fina | **Aresta rua → casa**: liga o nó de rua à casa (só nesse sentido) |
+
+### Como a casa se liga à rua
+Ao longo de um quarteirão os nós de rua ficam em ordem: esquina, centros, esquina. Cada nó de rua se liga
+às casas que ficam entre o nó anterior e o próximo, incluindo as que estão na frente deles. Por isso cada
+casa recebe 2 ou 3 arestas. O comprimento é a distância em linha reta do nó até a casa. O vértice da casa
+tem o id "h" seguido do número da casa (por exemplo, h45 é a casa 45).
 
 ### O que é "s/n"?
 **s/n significa "sem número".** Algumas casas, condomínios ou lotes constam no IBGE sem numeração.
@@ -173,7 +190,7 @@ origem e destino. A rota será desenhada aqui quando o algoritmo for conectado.
 def main():
     st.set_page_config(page_title="Delivery de Bicicletas — Limeira", layout="wide")
     st.title("Delivery de Bicicletas — Jardim Senador Vergueiro e arredores")
-    nos, trechos, casas = carregar()
+    nos, trechos, casas, rua_casa = carregar()
 
     with st.sidebar:
         st.header("Rota")
@@ -185,6 +202,7 @@ def main():
         st.caption("Camadas")
         mostrar = {
             "trechos": st.checkbox("Trechos (ruas)", True),
+            "rua_casa": st.checkbox("Arestas rua → casa", False),
             "esquina": st.checkbox("Esquinas", True),
             "centro": st.checkbox("Centros", True),
             "casas": st.checkbox("Casas", True),
@@ -200,6 +218,7 @@ def main():
             st.metric("Vértices de rua", len(nos))
             st.metric("Trechos", len(trechos))
             st.metric("Casas", len(casas))
+            st.metric("Arestas rua → casa", len(rua_casa))
             if origem == destino:
                 st.warning("Origem e destino são o mesmo lugar.")
             # TODO: chamar o Dijkstra do grupo aqui e desenhar a rota no mapa (construir_mapa)
@@ -207,7 +226,7 @@ def main():
 
         with col_mapa:
             with st.spinner("Montando o mapa…"):
-                mapa = construir_mapa(modo, nos, trechos, casas, mostrar, origem, destino)
+                mapa = construir_mapa(modo, nos, trechos, casas, rua_casa, mostrar, origem, destino)
             with st.spinner("Desenhando o mapa na tela…"):
                 st_folium(mapa, use_container_width=True, height=650, returned_objects=[],
                           key=f"mapa-{modo}-{sorted(mostrar.items())}-{origem}-{destino}")

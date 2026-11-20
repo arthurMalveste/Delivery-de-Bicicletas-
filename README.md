@@ -62,6 +62,19 @@ A inclinação é medida no sentido da aresta: `i = (h_v − h_u) / d × 100`. A
 - **Validação:** comparação com o Dijkstra do NetworkX e simulação à mão, em tabela, de um pedaço pequeno do grafo.
 - **Comparação:** para alguns destinos, a rota só por distância (multiplicador 1,0 em tudo) é mostrada ao lado da rota com níveis, para ver quando a dificuldade muda o caminho.
 
+## Como gerar os dados
+
+Rodar a partir de `src/`, nesta ordem, com o ambiente virtual ativo:
+
+```
+python baixar_ruas.py    # ruas do OpenStreetMap -> data/ruas.graphml
+python grafo_ruas.py     # esquinas, centros e trechos -> data/nos.csv, data/arestas.csv
+python altitude.py       # altitude das esquinas -> data/nos.csv
+python cnefe.py          # casas posicionadas nos lotes -> data/casas.csv
+python ligar_casas.py    # arestas rua -> casa -> data/arestas_casas.csv
+streamlit run app.py     # interface
+```
+
 ## Ferramentas e dados
 
 | Ferramenta | Uso |
@@ -85,6 +98,8 @@ A coordenada do CNEFE é o GPS do recenseador, parado na calçada. Usada direto,
 5. **Colocar no lote:** o ponto da casa fica afastado do eixo da rua, do lado certo, onde está o lote.
 
 Os parâmetros ficam em `src/config.py`. O arquivo `data/casas.csv` guarda a coordenada original do IBGE, o quarteirão (`esq_u`, `esq_v`) e a posição ao longo dele (`posicao_rel`, de 0 a 1), que é o que liga a casa aos nós de rua. Na interface, a camada "Ajuste das casas" mostra o caminho do ponto do IBGE até o lote.
+
+**Ligação com a rua:** o script `src/ligar_casas.py` aplica a regra de vizinhança e grava `data/arestas_casas.csv`. Num quarteirão com n centros, o nó k fica na posição relativa k / (n + 1) e se liga às casas com posição entre a do nó anterior e a do próximo, inclusive. Assim cada casa recebe 2 ou 3 arestas, todas no sentido rua → casa, com a distância em linha reta como comprimento. O vértice da casa tem o id `h` seguido do `id_casa`. Na interface, a camada "Arestas rua → casa" fica desligada por padrão.
 
 **Limitações:** o CNEFE é de 2022, então casas construídas depois não aparecem. Endereços em vias que não estão no grafo, como a marginal da rodovia na Rua Joaquim Daniel dos Santos, ficam de fora.
 
