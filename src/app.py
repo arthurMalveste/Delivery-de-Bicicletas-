@@ -23,16 +23,21 @@ TILES_ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery
 
 
 @st.cache_data
-def carregar():
+def _ler(versao):
+    """`versao` (datas de modificação dos CSVs) faz o cache ser refeito quando os dados são gerados de novo."""
     nos = pd.read_csv(NOS_CSV).set_index("id")
     trechos = pd.read_csv(ARESTAS_CSV)
     casas = pd.read_csv(CASAS_CSV).set_index("id_casa")
     return nos, trechos, casas
 
 
+def carregar():
+    return _ler(tuple(p.stat().st_mtime_ns for p in (NOS_CSV, ARESTAS_CSV, CASAS_CSV)))
+
+
 def rotulo_casa(id_casa, casa):
     numero = "s/n" if casa.numero == 0 else int(casa.numero)
-    return f"{casa.rua}, {numero} (casa {id_casa})"
+    return f"{casa.rua}, {numero} · {casa.bairro.title()} (casa {id_casa})"
 
 
 def nome_rua(casa):
@@ -49,11 +54,18 @@ def seletor_endereco(titulo, chave, casas, indice_padrao=0):
     ruas = sorted(casas.apply(nome_rua, axis=1).unique())
     rua = st.selectbox("Rua", ruas, index=indice_padrao if indice_padrao < len(ruas) else 0, key=f"{chave}-rua")
     da_rua = casas[casas.apply(nome_rua, axis=1) == rua].sort_values("numero", key=lambda n: n.where(n > 0, 10**9))  # s/n por último
-    numero = st.selectbox("Número", list(da_rua.numero), key=f"{chave}-num-{rua}", format_func=rotulo_numero)
-    if numero == 0:
-        st.caption("**s/n** = sem número: o IBGE registrou endereços dessa rua sem numeração; "
-                   "todos eles ficam representados por um único ponto no mapa.")
-    return int(da_rua[da_rua.numero == numero].index[0])
+    repetido = da_rua.numero.duplicated(keep=False)  # s/n em vários trechos, ou mesmo número em dois bairros
+
+    def rotulo(id_casa):
+        c = da_rua.loc[id_casa]
+        texto = rotulo_numero(c.numero)
+        return f"{texto} · {c.bairro.title()} (casa {id_casa})" if repetido[id_casa] else texto
+
+    id_casa = st.selectbox("Número", list(da_rua.index), key=f"{chave}-num-{rua}", format_func=rotulo)
+    if da_rua.loc[id_casa].numero == 0:
+        st.caption("**s/n** = sem número: o IBGE registrou endereços sem numeração nesse trecho da rua; "
+                   "os de um mesmo lado de quarteirão ficam representados por um único ponto no mapa.")
+    return int(id_casa)
 
 
 def construir_mapa(modo, nos, trechos, casas, mostrar, origem, destino, etapa=lambda msg: None):
@@ -90,6 +102,15 @@ def construir_mapa(modo, nos, trechos, casas, mostrar, origem, destino, etapa=la
             folium.CircleMarker([c.lat, c.lon], radius=3, color="#ff8c00", fill=True, fill_opacity=1,
                                 tooltip=rotulo_casa(i, c)).add_to(grupo)
 
+    if mostrar["ajuste"]:
+        etapa("Desenhando o ajuste das casas…")
+        grupo = folium.FeatureGroup("Ajuste das casas").add_to(m)
+        for i, c in casas.iterrows():
+            folium.PolyLine([[c.lat_ibge, c.lon_ibge], [c.lat, c.lon]], color="white", weight=1,
+                            tooltip=f"casa {i}: {c.deslocamento:.0f} m do ponto do IBGE").add_to(grupo)
+            folium.CircleMarker([c.lat_ibge, c.lon_ibge], radius=2, color="#a000c8", fill=True,
+                                fill_opacity=1, tooltip=f"Ponto do IBGE da casa {i}").add_to(grupo)
+
     etapa("Marcando origem e destino…")
     for id_casa, nome, cor, icone in ((origem, "Origem", "green", "play"), (destino, "Destino", "red", "flag")):
         c = casas.loc[id_casa]
@@ -113,7 +134,8 @@ aquela rua, então não é possível digitar um endereço inexistente.
 - *Satélite + grafo*: imagem de satélite com o grafo desenhado por cima (ruas em amarelo).
 - *Só o grafo (fundo branco)*: apenas o grafo, sem imagem (ruas em azul), bom para ver a estrutura.
 
-**3. Ligue ou desligue camadas**: trechos, esquinas, centros e casas.
+**3. Ligue ou desligue camadas**: trechos, esquinas, centros, casas e o ajuste das casas
+(traço branco do ponto original do IBGE, em roxo, até o ponto usado no grafo).
 
 **4. Explore o mapa.** Arraste para mover, use a roda do mouse ou os botões +/− para dar zoom e
 passe o mouse sobre um ponto para ver detalhes (ID e altitude do vértice, comprimento do trecho,
@@ -127,12 +149,20 @@ endereço da casa). O marcador verde é a origem e o vermelho é o destino.
 |---|---|
 | Ponto vermelho | **Esquina**: cruzamento ou ponta de rua (OpenStreetMap) |
 | Ponto ciano | **Centro**: ponto no meio do quarteirão, um a cada 50 m |
-| Ponto laranja | **Casa**: endereço do IBGE |
+| Ponto laranja | **Casa**: endereço do IBGE, colocado no lote em frente à sua rua |
+| Ponto roxo | Coordenada original do IBGE (camada "Ajuste das casas") |
 | Linha | **Trecho** de rua entre dois vértices |
 
 ### O que é "s/n"?
 **s/n significa "sem número".** Algumas casas, condomínios ou lotes constam no IBGE sem numeração.
-Como não dá para distingui-los, todos os registros sem número de uma mesma rua viram **uma única casa** no grafo.
+Como não dá para distingui-los, os registros sem número de um mesmo lado de quarteirão viram **uma única casa**
+no grafo. Por isso uma rua pode ter mais de um "s/n" na lista, cada um com o bairro e o número da casa.
+
+### Por que a casa não fica exatamente no ponto do IBGE?
+O IBGE registra a coordenada com o GPS do recenseador, parado na calçada: o ponto cai perto do meio da rua,
+às vezes do lado errado, fora de ordem ou com várias casas no mesmo lugar. Por isso cada casa é associada ao
+seu quarteirão, posta em ordem de número ao longo da calçada e colocada no lote, do lado certo da rua
+(detalhes em `src/cnefe.py`).
 
 ### Estado atual
 O cálculo da rota (Dijkstra) ainda não está integrado a esta interface: por ora o mapa mostra
@@ -142,7 +172,7 @@ origem e destino. A rota será desenhada aqui quando o algoritmo for conectado.
 
 def main():
     st.set_page_config(page_title="Delivery de Bicicletas — Limeira", layout="wide")
-    st.title("Delivery de Bicicletas — Jardim Senador Vergueiro")
+    st.title("Delivery de Bicicletas — Jardim Senador Vergueiro e arredores")
     nos, trechos, casas = carregar()
 
     with st.sidebar:
@@ -158,6 +188,7 @@ def main():
             "esquina": st.checkbox("Esquinas", True),
             "centro": st.checkbox("Centros", True),
             "casas": st.checkbox("Casas", True),
+            "ajuste": st.checkbox("Ajuste das casas (IBGE → lote)", False),
         }
 
     aba_mapa, aba_ajuda = st.tabs(["Mapa", "Ajuda"])

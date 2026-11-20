@@ -7,7 +7,7 @@ Projeto da disciplina TT001A. Modelamos o bairro **Jardim Senador Vergueiro**, e
 ## Como funciona
 
 1. As ruas do bairro são baixadas do **OpenStreetMap** com o OSMnx, já no formato de grafo.
-2. Os endereços das casas, com número e coordenada, vêm do **CNEFE 2022 do IBGE**.
+2. Os endereços das casas, com número e coordenada, vêm do **CNEFE 2022 do IBGE**. Entram os endereços de todos os bairros que ficam nas ruas do grafo, e cada casa é colocada no seu lote (ver [Posição das casas](#posição-das-casas)).
 3. Cada vértice recebe sua **altitude** pela API Open Topo Data (modelo SRTM de 30 m).
 4. O usuário escolhe o destino **digitando o endereço** (rua e número), **clicando no mapa** ou **digitando o ID do vértice**.
 5. O Dijkstra calcula a rota de menor custo a partir da loja.
@@ -21,7 +21,7 @@ O grafo tem três tipos de vértice. Os nós de rua (esquina e centro) se ligam 
 |---|---|
 | **Esquina** | Cruzamento ou ponta de rua, vindo do OpenStreetMap. |
 | **Centro** | Ponto no meio do quarteirão, criado pelo grupo: um a cada 50 m de quarteirão (`n = ⌈L / 50⌉ − 1`). |
-| **Casa** | Endereço do CNEFE. Os apartamentos de um prédio viram uma casa só. |
+| **Casa** | Endereço do CNEFE, colocado no lote em frente à sua rua. Os apartamentos de um prédio viram uma casa só. |
 
 **Regra de vizinhança:** ao longo de um quarteirão os nós de rua ficam em ordem (esquina, centros, esquina). Cada nó de rua se liga às casas que ficam entre o nó de rua anterior e o próximo, incluindo as que estão na frente deles. As casas dos dois lados da rua usam os mesmos nós.
 
@@ -67,12 +67,26 @@ A inclinação é medida no sentido da aresta: `i = (h_v − h_u) / d × 100`. A
 | Ferramenta | Uso |
 |---|---|
 | Python + OSMnx | Baixar as ruas do bairro como grafo, com comprimentos e coordenadas. |
-| CNEFE 2022 (IBGE) | Endereços do bairro com rua, número e coordenada (704 registros, 365 endereços). |
+| CNEFE 2022 (IBGE) | Endereços com rua, número e coordenada: 2.405 registros e 1.703 casas nas ruas do grafo, sendo 359 do Jardim Senador Vergueiro. |
 | Open Topo Data | Altitude dos vértices (SRTM 30 m). |
 | Folium | Desenhar a rota em um mapa HTML com fundo de satélite. |
 | NetworkX | Apenas para conferir o nosso Dijkstra, sem substituí-lo. |
 
-O OpenStreetMap não tem o nome "Senador Vergueiro", então o grafo é recortado pela área que contém os endereços do IBGE (latitude −22,5715 a −22,5625; longitude −47,4304 a −47,4185), mais uma margem.
+O OpenStreetMap não tem o nome "Senador Vergueiro", então o grafo é recortado pela área que contém os endereços do IBGE do bairro (latitude −22,5715 a −22,5625; longitude −47,4304 a −47,4185), mais uma margem. Essa área inclui ruas de bairros vizinhos. Para nenhuma rua do grafo ficar sem casas, entram os endereços de todos os bairros a até 30 m de uma rua do grafo.
+
+## Posição das casas
+
+A coordenada do CNEFE é o GPS do recenseador, parado na calçada. Usada direto, ela deixa a casa no meio da rua, às vezes do lado errado, fora de ordem ou amontoada com as vizinhas. Por isso o script `src/cnefe.py` faz:
+
+1. **Agrupar:** apartamentos de um mesmo prédio viram uma casa. Endereços sem número viram uma casa por lado de quarteirão.
+2. **Associar ao quarteirão:** cada casa vai para o quarteirão (trecho de esquina a esquina) mais próximo, dando preferência ao de mesmo nome de rua. A comparação de nomes tolera diferenças de grafia, como "Stocco" e "Stoco". Endereços a mais de 30 m de qualquer quarteirão são descartados.
+3. **Projetar na rua:** a casa ganha uma posição em metros desde a esquina inicial e um lado da rua. O lado é decidido por maioria na face de quadra do IBGE, que é sempre um lado só da rua.
+4. **Ordenar a calçada:** as casas da mesma rua ficam em ordem de número e a pelo menos 5 m umas das outras, mexendo o mínimo nas posições medidas. Uma casa que teria de andar mais de 25 m para entrar na ordem fica onde o IBGE mediu.
+5. **Colocar no lote:** o ponto da casa fica afastado do eixo da rua, do lado certo, onde está o lote.
+
+Os parâmetros ficam em `src/config.py`. O arquivo `data/casas.csv` guarda a coordenada original do IBGE, o quarteirão (`esq_u`, `esq_v`) e a posição ao longo dele (`posicao_rel`, de 0 a 1), que é o que liga a casa aos nós de rua. Na interface, a camada "Ajuste das casas" mostra o caminho do ponto do IBGE até o lote.
+
+**Limitações:** o CNEFE é de 2022, então casas construídas depois não aparecem. Endereços em vias que não estão no grafo, como a marginal da rodovia na Rua Joaquim Daniel dos Santos, ficam de fora.
 
 ## Fora do escopo
 

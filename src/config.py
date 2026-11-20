@@ -8,8 +8,19 @@ DATA, OUTPUT = RAIZ / "data", RAIZ / "output"
 LAT_MIN, LAT_MAX = -22.5715, -22.5625
 LON_MIN, LON_MAX = -47.4304, -47.4185
 MARGEM = 0.002  # graus (~200 m)
-LOCALIDADE = "JARDIM SENADOR VERGUEIRO"
 PASSO_CENTRO = 50  # m: n = ceil(L / PASSO_CENTRO) - 1 centros por quarteirão
+CRS_METROS = "EPSG:31983"  # SIRGAS 2000 / UTM 23S: coordenadas em metros para medir distâncias
+
+# casas (CNEFE): como cada endereço vira um ponto no lote, ao longo do seu quarteirão (ver cnefe.py)
+CASA_DIST_MAX = 30           # m: endereço mais longe que isso do eixo de qualquer quarteirão é descartado
+CASA_PENALIDADE_NOME = 25    # m somados à distância de um quarteirão com outro nome de rua
+CASA_PENALIDADE_SEM_NOME = 5 # m somados à distância de um quarteirão sem nome no OSM
+CASA_SIMILARIDADE_NOME = 0.8 # 0 a 1: semelhança mínima entre o nome do IBGE e o do OSM
+CASA_ESPACO_MIN = 5          # m entre casas vizinhas na mesma calçada (frente de casa geminada)
+CASA_DESVIO_MAX = 25         # m: casa que precisaria andar mais que isso para entrar na ordem fica onde está
+CASA_MARGEM_ESQUINA = 6      # m: nenhuma casa fica mais perto que isso da esquina
+CASA_RECUO_EXTRA = 5         # m além da calçada (onde o recenseador registrou o ponto) até a casa
+CASA_RECUO_MIN, CASA_RECUO_MAX = 9, 20  # m: limites da distância do ponto da casa ao eixo da rua
 
 # arquivos em data/
 GRAFO_RUAS = DATA / "ruas.graphml"
