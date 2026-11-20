@@ -22,6 +22,17 @@ CASA_MARGEM_ESQUINA = 6      # m: nenhuma casa fica mais perto que isso da esqui
 CASA_RECUO_EXTRA = 5         # m além da calçada (onde o recenseador registrou o ponto) até a casa
 CASA_RECUO_MIN, CASA_RECUO_MAX = 9, 20  # m: limites da distância do ponto da casa ao eixo da rua
 
+# loja (origem de toda rota): identificada pelo endereço no CNEFE; sai para os mesmos nós de rua que essa casa
+LOJA_ID = "loja"
+LOJA_NOME = "Luminarie Residence"
+LOJA_RUA, LOJA_NUMERO = "JULIA LANGE ADRIEN BARROS", 135
+
+# níveis de dificuldade pela inclinação i (%) no sentido da aresta: w(u, v) = d · m(nível(u, v))
+LIMITE_FACIL = 2.0    # i < 2%           -> fácil (descida ou plano)
+LIMITE_DIFICIL = 5.0  # 2% <= i <= 5%    -> moderado; i > 5% -> difícil
+MULTIPLICADOR = {"fácil": 0.9, "moderado": 1.0, "difícil": 1.1}
+MULTIPLICADOR_SEM_NIVEL = 1.0  # arestas rua -> casa e loja -> rua (o SRTM não tem precisão para trechos curtos)
+
 # arquivos em data/
 GRAFO_RUAS = DATA / "ruas.graphml"
 NOS_CSV = DATA / "nos.csv"          # id, tipo, lat, lon, altitude (só esquinas)
@@ -29,6 +40,7 @@ ARESTAS_CSV = DATA / "arestas.csv"  # u, v, comprimento, esq_u, esq_v, comprimen
 ALTITUDES_CACHE = DATA / "altitudes.json"  # {"lat,lon": altitude}
 CASAS_CSV = DATA / "casas.csv"
 ARESTAS_CASAS_CSV = DATA / "arestas_casas.csv"  # u (nó de rua) -> v (casa "h<id_casa>"), comprimento em linha reta
+GRAFO_CSV = DATA / "grafo.csv"  # grafo dirigido completo: u, v, tipo, comprimento, inclinacao, nivel, multiplicador, peso
 CNEFE_ZIP = DATA / "bruto" / "3526902_LIMEIRA.zip"
 CNEFE_URL = ("https://ftp.ibge.gov.br/Cadastro_Nacional_de_Enderecos_para_Fins_Estatisticos/"
              "Censo_Demografico_2022/Arquivos_CNEFE/CSV/Municipio/35_SP/3526902_LIMEIRA.zip")

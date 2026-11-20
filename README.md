@@ -62,6 +62,19 @@ A inclinação é medida no sentido da aresta: `i = (h_v − h_u) / d × 100`. A
 - **Validação:** comparação com o Dijkstra do NetworkX e simulação à mão, em tabela, de um pedaço pequeno do grafo.
 - **Comparação:** para alguns destinos, a rota só por distância (multiplicador 1,0 em tudo) é mostrada ao lado da rota com níveis, para ver quando a dificuldade muda o caminho.
 
+### Implementação
+
+| Arquivo | Papel |
+|---|---|
+| `src/grafo.py` | Monta o grafo dirigido: `inclinacao`, `nivel(u, v)`, `multiplicador` e `peso` ficam em funções separadas. Limites e multiplicadores estão em `src/config.py`. |
+| `src/dijkstra.py` | Dijkstra do grupo. Fecha o vértice aberto de menor rótulo, atualiza os vizinhos, para ao fechar o destino e monta a rota pelos antecessores. Pode registrar cada passo. |
+| `src/validar.py` | Compara com o NetworkX, compara as rotas das 1.703 casas e gera `output/simulacao.md`, a tabela da simulação à mão. |
+
+- **Loja:** a Luminarie Residence fica na Rua Julia Lange Adrien Barros, 135. O vértice `loja` sai para os mesmos nós de rua que ligam a essa casa.
+- **Inclinação:** só as esquinas têm altitude, então a inclinação de cada trecho é a do quarteirão inteiro, de esquina a esquina, com o sinal do sentido da aresta.
+- **Níveis no bairro:** com os limites de 2% e 5%, os quarteirões ficam 38% fáceis, 35% moderados e 27% difíceis, considerando a inclinação sem sinal.
+- **Resultado da validação:** o custo do nosso Dijkstra é idêntico ao do NetworkX para todos os vértices, nos dois modos de peso. As rotas com níveis e só por distância diferem em 42 das 1.703 casas.
+
 ## Como gerar os dados
 
 Rodar a partir de `src/`, nesta ordem, com o ambiente virtual ativo:
@@ -72,6 +85,8 @@ python grafo_ruas.py     # esquinas, centros e trechos -> data/nos.csv, data/are
 python altitude.py       # altitude das esquinas -> data/nos.csv
 python cnefe.py          # casas posicionadas nos lotes -> data/casas.csv
 python ligar_casas.py    # arestas rua -> casa -> data/arestas_casas.csv
+python grafo.py          # grafo dirigido com níveis e pesos -> data/grafo.csv (e confere a conexidade)
+python validar.py        # Dijkstra x NetworkX, comparação de rotas e simulação à mão -> output/
 streamlit run app.py     # interface
 ```
 
